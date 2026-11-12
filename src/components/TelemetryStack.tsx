@@ -777,8 +777,16 @@ export const TelemetryStack: React.FC = () => {
         } ${t.common.newtonsShort}`;
       }
 
+      ctx.font = '600 10px "Plus Jakarta Sans", sans-serif';
+      const titleW = ctx.measureText(plot.title).width;
+      ctx.font = '600 10px "JetBrains Mono", monospace';
+      const readoutW = ctx.measureText(liveReadout).width;
+      const readoutOffsetX = Math.max(105, Math.ceil(titleW) + 18);
+      const pillW = readoutOffsetX + Math.ceil(readoutW) + 12;
+
       ctx.fillStyle = 'rgba(0, 0, 0, 0.88)';
-      ctx.fillRect(leftPad + 6, currentTopY + 3, 385, 16);
+      ctx.fillRect(leftPad + 6, currentTopY + 3, pillW, 16);
+
       ctx.font = '600 10px "Plus Jakarta Sans", sans-serif';
       ctx.fillStyle = '#A3A3A3';
       ctx.textAlign = 'left';
@@ -787,7 +795,7 @@ export const TelemetryStack: React.FC = () => {
 
       ctx.font = '600 10px "JetBrains Mono", monospace';
       ctx.fillStyle = '#F5F5F5';
-      ctx.fillText(liveReadout, leftPad + 215, currentTopY + 11);
+      ctx.fillText(liveReadout, leftPad + 6 + readoutOffsetX, currentTopY + 11);
 
       currentTopY += plot.heightPx;
     }

@@ -14,6 +14,7 @@ import { useTelemetry, ActiveWorkspaceTab } from '../store/useTelemetry';
 import { formatLapTime, ParsedLap } from '../core/lapSplitter';
 import {
   useI18n,
+  LANGUAGE_OPTIONS,
   formatLocalizedLapLabel,
   localizeErrorMessage,
 } from '../i18n/translations';
@@ -131,8 +132,28 @@ export const HeaderBar: React.FC = () => {
 
   const refInputRef = useRef<HTMLInputElement>(null);
   const userInputRef = useRef<HTMLInputElement>(null);
+  const langMenuRef = useRef<HTMLDivElement>(null);
 
   const [dragOverSlot, setDragOverSlot] = useState<'ref' | 'user' | null>(null);
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!langMenuOpen) return;
+    const handleOutside = (e: MouseEvent) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(e.target as Node)) {
+        setLangMenuOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLangMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleOutside);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleOutside);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [langMenuOpen]);
 
   const handleFileChange = async (
     slot: 'ref' | 'user',
@@ -235,34 +256,52 @@ export const HeaderBar: React.FC = () => {
             </nav>
           )}
 
-          {/* Language Switcher (EN / RU) */}
-          <div
-            className="flex items-center bg-[#070707] p-0.5 rounded border border-neutral-800 text-[11px] font-mono shrink-0"
-            title={t.header.langSwitchTitle}
-          >
-            <Globe className="w-3.5 h-3.5 text-neutral-500 ml-1.5 mr-1" />
+          {/* Language Switcher Icon + Dropdown */}
+          <div ref={langMenuRef} className="relative shrink-0">
             <button
               type="button"
-              onClick={() => setLang('en')}
-              className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
-                lang === 'en'
-                  ? 'bg-neutral-800 text-white font-semibold'
-                  : 'text-neutral-500 hover:text-neutral-200'
+              onClick={() => setLangMenuOpen((prev) => !prev)}
+              aria-label={t.header.langSwitchTitle}
+              title={t.header.langSwitchTitle}
+              className={`h-7 w-7 rounded border flex items-center justify-center transition-colors cursor-pointer ${
+                langMenuOpen
+                  ? 'bg-neutral-800 border-neutral-500 text-white'
+                  : 'bg-[#070707] border-neutral-800 text-neutral-400 hover:text-neutral-100 hover:border-neutral-600'
               }`}
             >
-              EN
+              <Globe className="w-3.5 h-3.5" />
             </button>
-            <button
-              type="button"
-              onClick={() => setLang('ru')}
-              className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
-                lang === 'ru'
-                  ? 'bg-neutral-800 text-white font-semibold'
-                  : 'text-neutral-500 hover:text-neutral-200'
-              }`}
-            >
-              RU
-            </button>
+
+            {langMenuOpen && (
+              <div className="absolute right-0 mt-1.5 w-36 bg-[#050505] border border-neutral-700 rounded shadow-2xl z-50 py-1">
+                {LANGUAGE_OPTIONS.map((opt) => {
+                  const isSelected = opt.code === lang;
+                  return (
+                    <button
+                      key={opt.code}
+                      type="button"
+                      onClick={() => {
+                        setLang(opt.code);
+                        setLangMenuOpen(false);
+                      }}
+                      className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-neutral-800 text-white font-medium'
+                          : 'text-neutral-300 hover:bg-neutral-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[10px] font-mono text-neutral-500 w-5 shrink-0">
+                          {opt.short}
+                        </span>
+                        <span className="truncate">{opt.label}</span>
+                      </div>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-neutral-100 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </header>

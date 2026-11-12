@@ -70,11 +70,7 @@ const EmptyDropWorkspace: React.FC = () => {
             {t.dropWorkspace.title}
           </h1>
           <p className="text-xs text-neutral-400 leading-relaxed">
-            {t.dropWorkspace.subtitlePart1}
-            <code className="text-neutral-200 font-mono">.apex.zip</code>
-            {t.dropWorkspace.subtitlePart2}
-            <code className="text-neutral-200 font-mono">fflate</code>
-            {t.dropWorkspace.subtitlePart3}
+            {t.dropWorkspace.subtitle}
           </p>
         </div>
 
