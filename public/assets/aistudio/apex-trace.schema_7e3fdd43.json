@@ -1,0 +1,330 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://apex-trace.invalid/schema/1/archive.json",
+    "title": "apex-trace archive, schema 1",
+    "description": "One recording is a zip of entries: manifest.json, track.json, frames/NNNN.ndjson, summary.json and optionally dump_car.json. This document describes each of them. A reader picks the definition by entry name; the tools do it for you (tools/apex_trace.py).",
+    "$defs": {
+        "manifest": {
+            "type": "object",
+            "description": "First entry of the archive. Written before any frame, never rewritten, so its status stays \"open\" for the life of the file.",
+            "required": ["schema", "app", "version", "status", "sessionId", "startedUtc", "target", "track", "channels"],
+            "properties": {
+                "schema": { "const": 1 },
+                "app": { "const": "apex-trace" },
+                "version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+                "status": { "const": "open" },
+                "sessionId": { "type": "string", "pattern": "^[0-9a-f]{8}$" },
+                "startedUtc": { "type": "string", "format": "date-time" },
+                "startedUnix": { "type": "integer" },
+                "target": {
+                    "type": "object",
+                    "required": ["driverName"],
+                    "properties": {
+                        "driverName": { "type": "string" },
+                        "sessionID": { "type": ["integer", "null"], "description": "Entry-list slot, not the car index. Changes when cars join or leave." },
+                        "carModel": { "type": ["string", "null"] },
+                        "carSkin": { "type": ["string", "null"] },
+                        "isRemote": { "type": "boolean" },
+                        "isAi": { "type": "boolean" }
+                    }
+                },
+                "track": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": ["string", "null"] },
+                        "layout": { "type": ["string", "null"] },
+                        "name": { "type": ["string", "null"] },
+                        "lengthM": { "type": ["number", "null"] },
+                        "closed": { "type": "boolean" },
+                        "spline": { "type": "boolean", "description": "True when track.json was written." },
+                        "splineSource": { "type": "string", "description": "Which CSP accessor answered, for debugging a missing spline." }
+                    }
+                },
+                "server": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" },
+                        "ip": { "type": "string" },
+                        "httpPort": { "type": ["integer", "null"] }
+                    }
+                },
+                "sim": {
+                    "type": "object",
+                    "description": "Conditions at the moment the recording started.",
+                    "properties": {
+                        "online": { "type": "boolean" },
+                        "sessionType": { "type": ["integer", "null"] },
+                        "ambientC": { "type": ["number", "null"] },
+                        "roadC": { "type": ["number", "null"] },
+                        "grip": { "type": ["number", "null"] }
+                    }
+                },
+                "channels": {
+                    "type": "object",
+                    "description": "The channel list this archive was written with. Everything in a frame's f and w objects must be declared here; the tools check it.",
+                    "required": ["frame", "wheels"],
+                    "properties": {
+                        "frame": { "type": "array", "items": { "type": "string" } },
+                        "wheels": { "type": "array", "items": { "type": "string" } }
+                    }
+                },
+                "provenance": {
+                    "type": "object",
+                    "properties": {
+                        "wheels": { "type": "string", "description": "netcode: not guaranteed to be a measurement for a remote car." },
+                        "note": { "type": "string" }
+                    }
+                }
+            }
+        },
+
+        "summary": {
+            "type": "object",
+            "description": "Last entry of the archive, written only when the recording stopped cleanly. Its absence means the recording was cut short; frames up to the last full chunk are still valid.",
+            "required": ["schema", "status", "sessionId", "reason", "frames", "laps", "chunks", "coverage"],
+            "properties": {
+                "schema": { "const": 1 },
+                "app": { "const": "apex-trace" },
+                "version": { "type": "string" },
+                "status": { "const": "closed" },
+                "sessionId": { "type": "string" },
+                "endedUtc": { "type": "string", "format": "date-time" },
+                "reason": {
+                    "type": "string",
+                    "description": "Why the recording ended: user, target-lost, no-timestamp, timestamp-reset, write-failed, stopped, sample. A failed final chunk appends +write-failed.",
+                    "pattern": "^[a-z-]+(\\+[a-z-]+)?$"
+                },
+                "frames": { "type": "integer", "minimum": 0 },
+                "laps": { "type": "integer", "minimum": 0 },
+                "chunks": { "type": "integer", "minimum": 0 },
+                "bytes": { "type": "integer", "minimum": 0 },
+                "durationS": { "type": "number", "minimum": 0 },
+                "coverage": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["id", "scope", "present", "total"],
+                        "properties": {
+                            "id": { "type": "string" },
+                            "scope": { "enum": ["frame", "wheel"] },
+                            "present": { "type": "integer", "minimum": 0 },
+                            "total": { "type": "integer", "minimum": 0 }
+                        }
+                    }
+                },
+                "log": {
+                    "type": "object",
+                    "description": "Counters of the app's own log lines, so a missing channel has its explanation in the file.",
+                    "additionalProperties": { "type": "integer" }
+                }
+            }
+        },
+
+        "track": {
+            "type": "object",
+            "description": "The circuit's AI spline in world metres, sampled once per recording. 1000 points, closed circuits repeat the first point.",
+            "required": ["schema", "track", "points"],
+            "properties": {
+                "schema": { "const": 1 },
+                "track": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": ["string", "null"] },
+                        "layout": { "type": ["string", "null"] },
+                        "name": { "type": ["string", "null"] },
+                        "lengthM": { "type": ["number", "null"] },
+                        "closed": { "type": "boolean" },
+                        "source": { "type": "string" }
+                    }
+                },
+                "points": {
+                    "type": "array",
+                    "minItems": 2,
+                    "items": {
+                        "type": "object",
+                        "required": ["x", "z"],
+                        "properties": {
+                            "x": { "type": "number" },
+                            "z": { "type": "number" }
+                        }
+                    }
+                }
+            }
+        },
+
+        "dump": {
+            "type": "object",
+            "description": "A one-off snapshot of everything the game exposes for the car, including fields the recorder does not write. Absent fields are null, not missing.",
+            "required": ["schema", "app", "version", "fields"],
+            "properties": {
+                "schema": { "const": 1 },
+                "app": { "const": "apex-trace" },
+                "version": { "type": "string" },
+                "track": { "type": "object" },
+                "target": { "type": "object" },
+                "fields": { "type": "object" },
+                "wheels": { "type": "array" }
+            }
+        },
+
+        "frame": {
+            "type": "object",
+            "description": "One line of frames/NNNN.ndjson: one packet from the game, not one graphics frame.",
+            "required": ["k", "t", "c", "f", "w"],
+            "properties": {
+                "k": { "const": "frame" },
+                "t": { "type": "number", "description": "ac.StateCar.timestamp, ms. The same packet is never written twice." },
+                "c": { "type": "number", "description": "Seconds since the recording started." },
+                "lap": { "type": ["integer", "null"] },
+                "f": {
+                    "type": "object",
+                    "description": "Frame channels, named as the manifest declares them.",
+                    "properties": {
+                        "position": { "$ref": "#/$defs/vec3OrNull" },
+                        "velocity": { "$ref": "#/$defs/vec3OrNull" },
+                        "speedKmh": { "$ref": "#/$defs/numberOrNull" },
+                        "splinePosition": { "$ref": "#/$defs/numberOrNull" },
+                        "trackCoordinates": { "$ref": "#/$defs/vec3OrNull" },
+                        "yaw": { "$ref": "#/$defs/numberOrNull" },
+                        "pitch": { "$ref": "#/$defs/numberOrNull" },
+                        "roll": { "$ref": "#/$defs/numberOrNull" },
+                        "gas": { "$ref": "#/$defs/numberOrNull" },
+                        "brake": { "$ref": "#/$defs/numberOrNull" },
+                        "clutch": { "$ref": "#/$defs/numberOrNull" },
+                        "steer": { "$ref": "#/$defs/numberOrNull" },
+                        "handbrake": { "$ref": "#/$defs/numberOrNull" },
+                        "gear": { "$ref": "#/$defs/numberOrNull" },
+                        "engagedGear": { "$ref": "#/$defs/numberOrNull" },
+                        "rpm": { "$ref": "#/$defs/numberOrNull" },
+                        "lapTimeMs": { "$ref": "#/$defs/numberOrNull" },
+                        "bestLapTimeMs": { "$ref": "#/$defs/numberOrNull" },
+                        "previousLapTimeMs": { "$ref": "#/$defs/numberOrNull" },
+                        "lapCount": { "$ref": "#/$defs/numberOrNull" },
+                        "sessionLapCount": { "$ref": "#/$defs/numberOrNull" },
+                        "currentSector": { "$ref": "#/$defs/numberOrNull" },
+                        "previousSectorTime": { "$ref": "#/$defs/numberOrNull" },
+                        "racePosition": { "$ref": "#/$defs/numberOrNull" },
+                        "currentSplits": { "$ref": "#/$defs/intsOrNull" },
+                        "lastSplits": { "$ref": "#/$defs/intsOrNull" },
+                        "bestSplits": { "$ref": "#/$defs/intsOrNull" },
+                        "bestLapSplits": { "$ref": "#/$defs/intsOrNull" },
+                        "fuel": { "$ref": "#/$defs/numberOrNull" },
+                        "wheelsOutside": { "$ref": "#/$defs/numberOrNull" },
+                        "resetCounter": { "$ref": "#/$defs/numberOrNull" },
+                        "isInPit": { "$ref": "#/$defs/boolOrNull" },
+                        "isInPitlane": { "$ref": "#/$defs/boolOrNull" },
+                        "isRequestingPitStop": { "$ref": "#/$defs/boolOrNull" },
+                        "isConnected": { "$ref": "#/$defs/boolOrNull" },
+                        "isActive": { "$ref": "#/$defs/boolOrNull" },
+                        "isRemote": { "$ref": "#/$defs/boolOrNull" },
+                        "tyresName": { "type": ["string", "null"] },
+                        "oilTemperature": { "$ref": "#/$defs/numberOrNull" },
+                        "exhaustTemperature": { "$ref": "#/$defs/numberOrNull" }
+                    },
+                    "additionalProperties": { "$ref": "#/$defs/scalarOrNull" }
+                },
+                "w": {
+                    "type": "array",
+                    "description": "Four wheels, front-left to rear-right.",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "tyreInsideTemperature": { "$ref": "#/$defs/numberOrNull" },
+                            "tyreMiddleTemperature": { "$ref": "#/$defs/numberOrNull" },
+                            "tyreOutsideTemperature": { "$ref": "#/$defs/numberOrNull" },
+                            "tyreCoreTemperature": { "$ref": "#/$defs/numberOrNull" },
+                            "tyrePressure": { "$ref": "#/$defs/numberOrNull" },
+                            "tyreWear": { "$ref": "#/$defs/numberOrNull" },
+                            "tyreGrain": { "$ref": "#/$defs/numberOrNull" },
+                            "tyreBlister": { "$ref": "#/$defs/numberOrNull" },
+                            "tyreFlatSpot": { "$ref": "#/$defs/numberOrNull" },
+                            "tyreVirtualKM": { "$ref": "#/$defs/numberOrNull" },
+                            "slipRatio": { "$ref": "#/$defs/numberOrNull" },
+                            "slipAngle": { "$ref": "#/$defs/numberOrNull" },
+                            "ndSlip": { "$ref": "#/$defs/numberOrNull" },
+                            "angularSpeed": { "$ref": "#/$defs/numberOrNull" },
+                            "loadK": { "$ref": "#/$defs/numberOrNull" },
+                            "camber": { "$ref": "#/$defs/numberOrNull" },
+                            "toeIn": { "$ref": "#/$defs/numberOrNull" },
+                            "suspensionTravel": { "$ref": "#/$defs/numberOrNull" },
+                            "brakeTemperature": { "$ref": "#/$defs/numberOrNull" },
+                            "discTemperature": { "$ref": "#/$defs/numberOrNull" },
+                            "surfaceValidTrack": { "$ref": "#/$defs/boolOrNull" },
+                            "surfacePitlane": { "$ref": "#/$defs/boolOrNull" }
+                        },
+                        "additionalProperties": { "$ref": "#/$defs/scalarOrNull" }
+                    }
+                }
+            }
+        },
+
+        "lap": {
+            "type": "object",
+            "description": "A completed lap of the target. valid and cuts come from isLastLapValid / lastLapCutsCount, the pair a remote car does report; null means the build did not send them.",
+            "required": ["k", "c", "n"],
+            "properties": {
+                "k": { "const": "lap" },
+                "c": { "type": "number" },
+                "t": { "type": "number" },
+                "n": { "type": "integer", "description": "The new lap count, i.e. the lap that just started." },
+                "timeMs": { "$ref": "#/$defs/numberOrNull" },
+                "bestMs": { "$ref": "#/$defs/numberOrNull" },
+                "valid": { "$ref": "#/$defs/boolOrNull" },
+                "cuts": { "$ref": "#/$defs/numberOrNull" }
+            }
+        },
+
+        "sector": {
+            "type": "object",
+            "required": ["k", "c", "n"],
+            "properties": {
+                "k": { "const": "sector" },
+                "c": { "type": "number" },
+                "t": { "type": "number" },
+                "n": { "type": "integer", "description": "0-based sector index the car has just entered." },
+                "timeMs": { "$ref": "#/$defs/numberOrNull" }
+            }
+        },
+
+        "note": {
+            "type": "object",
+            "required": ["k", "c", "m"],
+            "properties": {
+                "k": { "const": "note" },
+                "c": { "type": "number" },
+                "t": { "type": "number" },
+                "m": { "type": "string", "description": "reset: the car was teleported back, so the frames around this point are not a continuous line." }
+            }
+        },
+
+        "line": {
+            "description": "Any line of frames/NNNN.ndjson.",
+            "oneOf": [
+                { "$ref": "#/$defs/frame" },
+                { "$ref": "#/$defs/lap" },
+                { "$ref": "#/$defs/sector" },
+                { "$ref": "#/$defs/note" }
+            ]
+        },
+
+        "numberOrNull": { "type": ["number", "null"] },
+        "boolOrNull": { "type": ["boolean", "null"] },
+        "vec3OrNull": {
+            "oneOf": [
+                { "type": "null" },
+                { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "number" } }
+            ]
+        },
+        "intsOrNull": {
+            "oneOf": [
+                { "type": "null" },
+                { "type": "array", "items": { "type": "integer" } }
+            ]
+        },
+        "scalarOrNull": {
+            "type": ["number", "string", "boolean", "null", "array"]
+        }
+    }
+}

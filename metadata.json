@@ -1,0 +1,6 @@
+{
+  "name": "Apex Trace Telemetry Analyzer",
+  "description": "Client-side racing telemetry analyzer and lap comparison suite for Assetto Corsa (.apex.zip format) with 2D track boundary reconstruction, Delta-T, and synchronized multi-channel plots.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
